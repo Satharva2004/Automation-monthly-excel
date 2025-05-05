@@ -17,9 +17,99 @@ DRIVE_FOLDER_ID=1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r
 # Application Settings
 NODE_ENV=production
 PORT=3000
+
+# Scheduler Settings (for Web Service Scheduler)
+ENABLE_SCHEDULER=true
 ```
 
-## Deployment Steps
+## Free Deployment Options (No Credit Card Required)
+
+### Option 1: Render Free Tier Web Service with Built-in Scheduler
+
+Instead of using Render's cron job service (which requires a credit card), you can use a single web service with an internal scheduler:
+
+1. In the Render dashboard, click "New" → "Web Service"
+2. Connect to your GitHub repository
+3. Configure the web service:
+   - **Name**: `sprout-analytics`
+   - **Environment**: `Node`
+   - **Region**: Choose the region closest to you
+   - **Branch**: `main` (or your default branch)
+   - **Build Command**: `npm install`
+   - **Start Command**: `node index.js`
+   - **Plan**: Free (or Starter if you have a credit card)
+   - **Add Environment Variables**: Copy from the environment variables section above, and set `ENABLE_SCHEDULER=true`
+4. Click "Create Web Service"
+
+The internal scheduler will run your analytics job daily at 2:00 AM UTC. However, be aware that Render's free tier web services will spin down after periods of inactivity, which means the scheduler might not run if the service is inactive.
+
+### Option 2: External Services to Trigger Your Web Hook
+
+You can use these free services to trigger your analytics by hitting your `/run` endpoint:
+
+#### A. GitHub Actions (Free)
+
+1. Create a `.github/workflows/cron.yml` file in your repository:
+
+```yaml
+name: Daily Analytics Run
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # Runs at 2:00 AM UTC daily
+
+jobs:
+  trigger-analytics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger analytics webhook
+        run: |
+          curl -X GET https://your-render-app-url.onrender.com/run
+```
+
+2. Push this file to your repository
+3. GitHub will automatically run this workflow according to the schedule
+
+#### B. Pipedream (Free Plan)
+
+1. Sign up for [Pipedream](https://pipedream.com/) (no credit card required)
+2. Create a new workflow with a Schedule trigger
+3. Set it to run daily at 2:00 AM UTC
+4. Add an HTTP step to call your Render URL: `https://your-render-app-url.onrender.com/run`
+
+#### C. Cron-job.org (Free)
+
+1. Sign up for [cron-job.org](https://cron-job.org/) (free, no credit card)
+2. Create a new cronjob
+3. Set the URL to your Render app endpoint: `https://your-render-app-url.onrender.com/run`
+4. Set the schedule to daily at 2:00 AM UTC
+5. Save the cronjob
+
+### Option 3: Vercel Deploy with Cron Jobs (Free)
+
+If you're open to using Vercel instead of Render, they offer serverless functions with cron job support on their free plan:
+
+1. Sign up for [Vercel](https://vercel.com/) (no credit card required)
+2. Connect your GitHub repository
+3. In your `vercel.json` file, add:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/run",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+```
+
+4. Deploy your application to Vercel
+5. Vercel will automatically call your `/run` endpoint daily at 2:00 AM UTC
+
+## Standard Render Deployment (When Ready)
+
+When you have a credit card available, follow these steps for a more reliable deployment:
 
 ### 1. Prepare Your Code
 
@@ -41,73 +131,20 @@ PORT=3000
 4. Review the settings for the web service and cron job
 5. Click "Apply" to create the services as defined in your `render.yaml`
 
-### 4. Manual Deployment (Alternative)
-
-If the Blueprint approach doesn't work, you can manually create the services:
-
-#### Web Service
-
-1. In the Render dashboard, click "New" → "Web Service"
-2. Connect to your GitHub repository
-3. Configure the web service:
-   - **Name**: `sprout-analytics`
-   - **Environment**: `Node`
-   - **Region**: Choose the region closest to you
-   - **Branch**: `main` (or your default branch)
-   - **Build Command**: `npm install`
-   - **Start Command**: `node index.js`
-   - **Plan**: Choose "Starter" or higher (Free tier will sleep after inactivity)
-   - **Add Environment Variables**: Copy from the environment variables section above
-4. Click "Create Web Service"
-
-#### Cron Job
-
-1. In the Render dashboard, click "New" → "Cron Job"
-2. Connect to your GitHub repository
-3. Configure the cron job:
-   - **Name**: `daily-analytics-update`
-   - **Environment**: `Node`
-   - **Region**: Choose the same region as your web service
-   - **Branch**: `main` (or your default branch)
-   - **Schedule**: `00 2 * * *` (runs daily at 2:00 AM UTC)
-   - **Build Command**: `npm install`
-   - **Start Command**: `node schedule-daily-update.js`
-   - **Add Environment Variables**: Copy from the environment variables section above
-4. Click "Create Cron Job"
-
-### 5. Upload Service Account Key (If Not in Repository)
-
-If you did not include your `service-account-key.json` in your repository, you can add it as a secret file:
-
-1. Go to your web service or cron job in the Render dashboard
-2. Navigate to "Environment" → "Secret Files"
-3. Click "Add Secret File"
-4. Set the filename to `service-account-key.json`
-5. Paste the contents of your service account key file
-6. Click "Save"
-7. Repeat for the other service
-
-### 6. Verify Deployment
-
-1. After deployment completes, click on the URL of your web service
-2. You should see a JSON response with `status: "online"`
-3. To manually test the analytics, go to `<your-render-url>/run`
-
-### 7. Monitor Your Services
-
-1. In the Render dashboard, monitor the logs for both your web service and cron job
-2. Check logs after 2:00 AM to verify the cron job is running properly
-3. Set up notifications in Render to be alerted of failures
-
 ## Troubleshooting
 
 - **Authentication Issues**: Make sure your `service-account-key.json` file is correctly uploaded and that the service account has the necessary permissions to access your Google Drive folders.
-- **Memory/CPU Issues**: If your job is failing due to memory or CPU limits, consider upgrading your Render plan.
-- **Timeout Issues**: Long-running jobs might time out. The code includes proper timeouts and exit handling to prevent this.
+- **Web Service Sleep**: Render's free tier web services will spin down after periods of inactivity. This means your internal scheduler might miss its scheduled time. Consider using one of the external services to keep it active.
 - **Logs**: Always check the logs in Render for error messages if something isn't working.
 
 ## Important Notes
 
-1. The free tier of Render has limitations, including that web services will spin down after inactivity. Consider using at least the "Starter" plan for better reliability.
-2. The cron job runs at 2:00 AM UTC. Adjust the schedule in `render.yaml` if you need a different time.
-3. Token refresh has been added to handle Google API token expiration automatically. 
+1. The free tier web service has limitations. It will spin down after inactivity, affecting the reliability of the built-in scheduler. For more reliable scheduling, consider:
+
+   - Using an external service to trigger your analytics (Options 2A, 2B, or 2C)
+   - Upgrading to Render's Starter plan when possible
+   - Switching to Vercel's serverless functions with cron support (Option 3)
+
+2. Token refresh has been added to handle Google API token expiration automatically.
+
+3. The default schedule is set to run daily at 2:00 AM UTC. You can adjust this in the code for built-in scheduling, or in the external service's configuration.

@@ -1,0 +1,19 @@
+name: Daily Analytics Run
+
+on:
+  schedule:
+    - cron: "30 7 * * *" # Runs at 2:00 AM UTC daily
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  trigger-analytics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger analytics webhook
+        run: |
+          # Replace with your actual Render URL after deployment
+          curl -X GET https://your-render-app-url.onrender.com/run
+
+      - name: Log completion
+        run: |
+          echo "Analytics job triggered at $(date)"
