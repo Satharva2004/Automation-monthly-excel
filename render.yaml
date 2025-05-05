@@ -1,0 +1,36 @@
+services:
+  # Web Service
+  - type: web
+    name: sprout-analytics
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SPROUT_API_TOKEN
+        value: "MjQyNjQ1MXwxNzQyNzk4MTc4fDQ0YmU1NzQ4LWI1ZDAtNDhkMi04ODQxLWE1YzM1YmI4MmNjNQ=="
+      - key: CUSTOMER_ID
+        value: "2426451"
+      - key: DRIVE_FOLDER_ID
+        value: "1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r"
+    autoDeploy: true
+
+  # Cron job for daily analytics update
+  - type: cron
+    name: daily-analytics-update
+    env: node
+    schedule: "30 7 * * *"
+    buildCommand: npm install
+    startCommand: node schedule-daily-update.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SPROUT_API_TOKEN
+        value: "MjQyNjQ1MXwxNzQyNzk4MTc4fDQ0YmU1NzQ4LWI1ZDAtNDhkMi04ODQxLWE1YzM1YmI4MmNjNQ=="
+      - key: CUSTOMER_ID
+        value: "2426451"
+      - key: DRIVE_FOLDER_ID
+        value: "1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r"

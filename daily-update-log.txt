@@ -53,3 +53,44 @@
 [2025-05-04T12:28:34.422Z] Running update for data through 5/4/2025
 [2025-05-04T12:28:34.430Z] ==================================================
 [2025-05-04T12:28:50.172Z] Scheduler stopping due to user request
+[2025-05-05T20:30:11.745Z] Running analytics update...
+[2025-05-05T20:30:11.760Z] Using simplified analytics script: simple-analytics.js
+[2025-05-05T20:30:11.761Z] 
+=== STARTING ANALYTICS UPDATE ===
+[2025-05-05T20:30:12.009Z] Start time: 6/5/2025, 2:00:11 am
+[2025-05-05T20:30:12.010Z] Script path: C:\Users\sawan\OneDrive\Desktop\schbang\Automation-excel\simple-analytics.js
+[2025-05-05T20:30:12.012Z] Max buffer size: 50MB
+[2025-05-05T20:30:12.017Z] 
+=== EXECUTION STARTING ===
+[2025-05-05T20:31:16.953Z] Running analytics update...
+[2025-05-05T20:31:16.975Z] Using simplified analytics script: simple-analytics.js
+[2025-05-05T20:31:16.977Z] 
+=== STARTING ANALYTICS UPDATE ===
+[2025-05-05T20:31:17.149Z] Start time: 6/5/2025, 2:01:16 am
+[2025-05-05T20:31:17.150Z] Script path: C:\Users\sawan\OneDrive\Desktop\schbang\Automation-excel\simple-analytics.js
+[2025-05-05T20:31:17.151Z] Max buffer size: 50MB
+[2025-05-05T20:31:17.153Z] 
+=== EXECUTION STARTING ===
+[2025-05-05T20:32:06.476Z] Running analytics update...
+[2025-05-05T20:32:06.494Z] Using simplified analytics script: simple-analytics.js
+[2025-05-05T20:32:06.496Z] 
+=== STARTING ANALYTICS UPDATE ===
+[2025-05-05T20:32:06.622Z] Start time: 6/5/2025, 2:02:06 am
+[2025-05-05T20:32:06.623Z] Script path: C:\Users\sawan\OneDrive\Desktop\schbang\Automation-excel\simple-analytics.js
+[2025-05-05T20:32:06.626Z] Max buffer size: 50MB
+[2025-05-05T20:32:06.627Z] 
+=== EXECUTION STARTING ===
+[2025-05-05T20:52:10.319Z] Script stderr: Error getting analytics data for profile 7033374: Client network socket disconnected before secure TLS connection was established
+
+[2025-05-05T20:52:10.912Z] Analytics update completed successfully at 2:22:10 am
+[2025-05-05T20:52:11.057Z] Total execution time: 20.9 minutes (1253 seconds)
+[2025-05-05T20:52:11.064Z] Output: Starting Group Analytics Processing at 2:01:22 am
+Authenticating with Google APIs...
+Using service account authentication...
+Service account authentication successful
+Verifying access to folder: 1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r
+Successfully verified access to folder "Automation_daily_excel_updates" (1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r)
+
+=== Fetching Customer Groups ===
+[API CALL] Fetching customer groups from: https://api.sproutsocial.com/v1/2426451/metadata/customer/groups
+[API CALL] Fetching cu...

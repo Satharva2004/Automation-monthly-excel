@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node schedule-daily-update.js",
+    "start": "node index.js",
+    "analytics": "node schedule-daily-update.js",
+    "cron": "set CRON=true && node index.js",
     "groups": "node group-analytics.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,7 +24,7 @@
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
     "googleapis": "^148.0.0",
-    "node-schedule": "^2.1.1",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
+    "sprout-analytics-to-sheets": "file:"
   }
 }
