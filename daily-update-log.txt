@@ -94,3 +94,14 @@ Successfully verified access to folder "Automation_daily_excel_updates" (1usYEd9
 === Fetching Customer Groups ===
 [API CALL] Fetching customer groups from: https://api.sproutsocial.com/v1/2426451/metadata/customer/groups
 [API CALL] Fetching cu...
+[2025-05-07T00:21:40.351Z] Running analytics update...
+[2025-05-07T00:21:40.373Z] Checking Google API token validity...
+[2025-05-07T00:21:41.714Z] Token is valid or has been refreshed successfully
+[2025-05-07T00:21:41.715Z] Using simplified analytics script: simple-analytics.js
+[2025-05-07T00:21:41.717Z] 
+=== STARTING ANALYTICS UPDATE ===
+[2025-05-07T00:21:41.919Z] Start time: 7/5/2025, 5:51:41 am
+[2025-05-07T00:21:41.920Z] Script path: C:\Users\sawan\OneDrive\Desktop\schbang\Automation-excel\simple-analytics.js
+[2025-05-07T00:21:41.923Z] Max buffer size: 50MB
+[2025-05-07T00:21:41.926Z] 
+=== EXECUTION STARTING ===
