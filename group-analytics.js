@@ -92,7 +92,7 @@ const currentMonthRange = getCurrentMonthRange();
 // Date ranges for analytics - only using one folder and fetching monthly data
 const FOLDER_CONFIGS = [
   {
-    folderId: "1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r",
+    folderId: "1OA82RSaq0On_ERovDsZYUqeoMByyWruP",
     startDate: currentMonthRange.startDate, // First day of the month
     endDate: currentMonthRange.endDate, // Last day of the month
     description: `Monthly Report - ${currentMonthRange.monthName} ${currentMonthRange.year}`,
