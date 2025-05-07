@@ -7,6 +7,7 @@
  * and creates separate Google Sheets for each group with the data.
  * Modified to save spreadsheets to multiple Drive folders.
  * Uses Google Service Account authentication for continuous operation.
+ * UPDATED: Now performs monthly analytics operations.
  */
 
 const path = require("path");
@@ -18,6 +19,13 @@ const sheetsUtils = require("./utils/sheets");
 const driveUtils = require("./utils/drive");
 const groupUtils = require("./utils/groups");
 const authUtils = require("./utils/auth");
+
+// Import platform modules
+const instagram = require("./platforms/instagram");
+const youtube = require("./platforms/youtube");
+const linkedin = require("./platforms/linkedin");
+const facebook = require("./platforms/facebook");
+const twitter = require("./platforms/twitter");
 
 /**
  * Sleep for a specified duration
@@ -37,27 +45,57 @@ const SERVICE_ACCOUNT_KEY_PATH = path.join(
   "service-account-key.json"
 );
 
-// Get yesterday's date in YYYY-MM-DD format for more complete analytics data
-const getCurrentDate = () => {
-  // Use yesterday's date instead of today to ensure complete metrics
-  // Social media platforms often have a delay in reporting analytics
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+/**
+ * Get the first and last day of a month for the given date
+ * @param {Date} date - Date to get month range for
+ * @returns {Object} Object with startDate and endDate strings in YYYY-MM-DD format
+ */
+const getMonthDateRange = (date) => {
+  // Get first day of the month
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
 
-  const year = yesterday.getFullYear();
-  const month = String(yesterday.getMonth() + 1).padStart(2, "0");
-  const day = String(yesterday.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  // Get last day of the month
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+  // Format dates as YYYY-MM-DD
+  const formatDate = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    startDate: formatDate(firstDay),
+    endDate: formatDate(lastDay),
+    monthName: firstDay.toLocaleString("default", { month: "long" }),
+    year: firstDay.getFullYear(),
+  };
 };
 
-// Date ranges for analytics - only using one folder and only fetching today's data
+/**
+ * Get the current month's date range
+ * @returns {Object} Object with startDate and endDate strings in YYYY-MM-DD format
+ */
+const getCurrentMonthRange = () => {
+  // Use previous month for more complete data
+  const today = new Date();
+  const previousMonth = new Date(today);
+  previousMonth.setMonth(previousMonth.getMonth() - 1);
+
+  return getMonthDateRange(previousMonth);
+};
+
+// Get current month's date range for analytics
+const currentMonthRange = getCurrentMonthRange();
+
+// Date ranges for analytics - only using one folder and fetching monthly data
 const FOLDER_CONFIGS = [
   {
     folderId: "1usYEd9TeNI_2gapA-dLK4y27zvvWJO8r",
-    startDate: getCurrentDate(), // Today's date as start date
-    endDate: getCurrentDate(), // Today's date as end date
-    description: "Daily Update",
+    startDate: currentMonthRange.startDate, // First day of the month
+    endDate: currentMonthRange.endDate, // Last day of the month
+    description: `Monthly Report - ${currentMonthRange.monthName} ${currentMonthRange.year}`,
   },
 ];
 
@@ -65,6 +103,195 @@ const FOLDER_CONFIGS = [
 const BASE_URL = "https://api.sproutsocial.com/v1";
 const METADATA_URL = `${BASE_URL}/${CUSTOMER_ID}/metadata/customer`;
 const ANALYTICS_URL = `${BASE_URL}/${CUSTOMER_ID}/analytics/profiles`;
+
+// Add styling configuration
+const SHEET_STYLES = {
+  header: {
+    backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+    textColor: { red: 1, green: 1, blue: 1 },
+    bold: true,
+    fontSize: 11,
+    horizontalAlignment: "CENTER",
+    verticalAlignment: "MIDDLE",
+  },
+  data: {
+    fontSize: 10,
+    horizontalAlignment: "LEFT",
+    verticalAlignment: "MIDDLE",
+  },
+  dateColumn: {
+    numberFormat: { type: "DATE", pattern: "yyyy-mm-dd" },
+  },
+  numberColumn: {
+    numberFormat: { type: "NUMBER", pattern: "#,##0" },
+  },
+  percentageColumn: {
+    numberFormat: { type: "PERCENT", pattern: "0.00%" },
+  },
+};
+
+/**
+ * Apply styling to a sheet
+ * @param {Object} sheets - Google Sheets API client
+ * @param {string} spreadsheetId - ID of the spreadsheet
+ * @param {string} sheetName - Name of the sheet to style
+ * @param {Array} headers - Array of header names
+ */
+const applySheetStyling = async (sheets, spreadsheetId, sheetName, headers) => {
+  try {
+    // Get the sheet ID
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId,
+      includeGridData: false,
+    });
+
+    const sheet = response.data.sheets.find(
+      (s) => s.properties.title === sheetName
+    );
+    if (!sheet) return;
+
+    const sheetId = sheet.properties.sheetId;
+    const requests = [];
+
+    // Style header row
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: SHEET_STYLES.header.backgroundColor,
+            textFormat: {
+              foregroundColor: SHEET_STYLES.header.textColor,
+              bold: SHEET_STYLES.header.bold,
+              fontSize: SHEET_STYLES.header.fontSize,
+            },
+            horizontalAlignment: SHEET_STYLES.header.horizontalAlignment,
+            verticalAlignment: SHEET_STYLES.header.verticalAlignment,
+          },
+        },
+        fields:
+          "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+      },
+    });
+
+    // Style data rows
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            fontSize: SHEET_STYLES.data.fontSize,
+            horizontalAlignment: SHEET_STYLES.data.horizontalAlignment,
+            verticalAlignment: SHEET_STYLES.data.verticalAlignment,
+          },
+        },
+        fields:
+          "userEnteredFormat(fontSize,horizontalAlignment,verticalAlignment)",
+      },
+    });
+
+    // Style date column (Column A)
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startColumnIndex: 0,
+          endColumnIndex: 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            numberFormat: SHEET_STYLES.dateColumn.numberFormat,
+          },
+        },
+        fields: "userEnteredFormat.numberFormat",
+      },
+    });
+
+    // Style number columns (based on header names)
+    const numberColumns = headers.reduce((acc, header, index) => {
+      if (
+        header.toLowerCase().includes("count") ||
+        header.toLowerCase().includes("growth") ||
+        header.toLowerCase().includes("gained") ||
+        header.toLowerCase().includes("lost") ||
+        header.toLowerCase().includes("views") ||
+        header.toLowerCase().includes("impressions")
+      ) {
+        acc.push(index);
+      }
+      return acc;
+    }, []);
+
+    numberColumns.forEach((columnIndex) => {
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: SHEET_STYLES.numberColumn.numberFormat,
+            },
+          },
+          fields: "userEnteredFormat.numberFormat",
+        },
+      });
+    });
+
+    // Style percentage columns
+    const percentageColumns = headers.reduce((acc, header, index) => {
+      if (
+        header.toLowerCase().includes("rate") ||
+        header.toLowerCase().includes("percentage")
+      ) {
+        acc.push(index);
+      }
+      return acc;
+    }, []);
+
+    percentageColumns.forEach((columnIndex) => {
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: SHEET_STYLES.percentageColumn.numberFormat,
+            },
+          },
+          fields: "userEnteredFormat.numberFormat",
+        },
+      });
+    });
+
+    // Apply all styles
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: {
+        requests,
+      },
+    });
+
+    console.log(`Applied styling to sheet: ${sheetName}`);
+  } catch (error) {
+    console.error(
+      `Error applying styles to sheet ${sheetName}:`,
+      error.message
+    );
+  }
+};
 
 // Check for available credentials files
 const checkCredentials = () => {
@@ -209,8 +436,10 @@ const processGroupAnalytics = async (
   profiles,
   googleClients
 ) => {
+  const groupStartTime = new Date();
+  let currentSpreadsheetId = null;
+
   try {
-    const groupStartTime = new Date();
     console.log(`\n=== Processing Group: ${groupName} (${groupId}) ===`);
     console.log(`Found ${profiles.length} profiles in this group`);
 
@@ -229,13 +458,9 @@ const processGroupAnalytics = async (
         `Creating spreadsheet in folder: ${folderId} (${description}: ${startDate} to ${endDate})`
       );
 
-      // Get yesterday's date for the title (data date)
+      // Format date for title
       const now = new Date();
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-
-      // Format as DD-MM-YYYY (or your preferred format)
-      const formattedDate = yesterday.toLocaleDateString("en-GB"); // e.g., 06/05/2025
+      const formattedDate = now.toLocaleDateString("en-GB"); // e.g., 06/05/2025
       const formattedTime = now.toLocaleTimeString("en-GB", {
         hour: "2-digit",
         minute: "2-digit",
@@ -256,6 +481,7 @@ const processGroupAnalytics = async (
       if (existingSpreadsheet) {
         // Use the existing spreadsheet but update its title to reflect the new update time
         spreadsheetId = existingSpreadsheet.id;
+        currentSpreadsheetId = spreadsheetId; // Update the current spreadsheet ID
         console.log(
           `Found existing spreadsheet: "${existingSpreadsheet.name}" (${spreadsheetId})`
         );
@@ -278,6 +504,7 @@ const processGroupAnalytics = async (
           spreadsheetTitle,
           folderId
         );
+        currentSpreadsheetId = spreadsheetId; // Update the current spreadsheet ID
 
         if (!spreadsheetId) {
           console.error(
@@ -320,6 +547,13 @@ const processGroupAnalytics = async (
               googleClients.auth,
               spreadsheetId
             );
+            // Apply styling after setting up headers
+            await applySheetStyling(
+              sheets,
+              spreadsheetId,
+              sheetName,
+              module.HEADERS
+            );
           }
         }
       }
@@ -332,13 +566,13 @@ const processGroupAnalytics = async (
         `Fetching analytics data for ${profileIds.length} profiles in group ${groupName} from ${startDate} to ${endDate}`
       );
 
-      // First check if we already have data for today to avoid duplicates
+      // Check if we already have data for this month to avoid duplicates
       let existingData = false;
       try {
-        // Get the current date in the format used in the spreadsheet (YYYY-MM-DD)
-        const today = getCurrentDate();
+        // Create a month-year string for checking (e.g., "2024-01" for January 2024)
+        const monthYearKey = startDate.substring(0, 7); // YYYY-MM format
 
-        // Check if we already have data for today in the spreadsheet
+        // Check if we already have data for this month in the spreadsheet
         for (const sheetName of createdSheets) {
           const existingValues = await sheetsUtils.getSheetValues(
             googleClients.auth,
@@ -347,11 +581,15 @@ const processGroupAnalytics = async (
             "A:A"
           );
           if (existingValues && existingValues.length > 1) {
-            // Check if today's date exists in column A
-            const todayExists = existingValues.some((row) => row[0] === today);
-            if (todayExists) {
+            // Check if any date in column A matches this month-year pattern
+            const monthExists = existingValues.some((row) => {
+              // If the date exists and starts with our month-year pattern
+              return row[0] && row[0].startsWith(monthYearKey);
+            });
+
+            if (monthExists) {
               console.log(
-                `Data for today (${today}) already exists in sheet ${sheetName}. Skipping update.`
+                `Data for ${monthYearKey} already exists in sheet ${sheetName}. Skipping update.`
               );
               existingData = true;
               break;
@@ -364,10 +602,10 @@ const processGroupAnalytics = async (
         );
       }
 
-      // Skip fetching if we already have today's data
+      // Skip fetching if we already have this month's data
       if (existingData) {
         console.log(
-          `Skipping analytics update for group ${groupName} as today's data already exists.`
+          `Skipping analytics update for group ${groupName} as data for this month already exists.`
         );
         results.push({
           groupId,
@@ -378,7 +616,7 @@ const processGroupAnalytics = async (
           profileCount: profiles.length,
           spreadsheetId,
           spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
-          status: "Already updated today",
+          status: "Already updated for this month",
         });
         continue; // Skip to next folder
       }
@@ -553,6 +791,10 @@ const processGroupAnalytics = async (
                     spreadsheetId,
                     rows
                   );
+
+                  // Add monthly summary
+                  await module.addMonthlySummary(sheets, spreadsheetId, rows);
+
                   const sheetEndTime = new Date();
                   const sheetTimeMs = sheetEndTime - sheetTimers[sheetName];
                   const sheetTimeSec = Math.round(sheetTimeMs / 1000);
@@ -624,9 +866,11 @@ const processGroupAnalytics = async (
     console.log(
       `Total time taken: ${executionTimeMin} minutes (${executionTimeSec} seconds)`
     );
-    console.log(
-      `Spreadsheet URL: https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
-    );
+    if (currentSpreadsheetId) {
+      console.log(
+        `Spreadsheet URL: https://docs.google.com/spreadsheets/d/${currentSpreadsheetId}/edit`
+      );
+    }
 
     return results;
   } catch (error) {
@@ -652,38 +896,29 @@ const processGroupAnalytics = async (
 };
 
 /**
- * Main function to orchestrate the entire process
+ * Processes the analytics for a specific month
+ * @param {Date} monthDate - Date object representing the month to process
+ * @param {Object} googleClients - Authenticated Google API clients
  */
-const main = async () => {
+const processMonthAnalytics = async (monthDate, googleClients) => {
   try {
-    const startTime = new Date();
+    const monthRange = getMonthDateRange(monthDate);
     console.log(
-      `Starting Group Analytics Processing at ${startTime.toLocaleTimeString()}`
+      `\n=== Processing Month: ${monthRange.monthName} ${monthRange.year} ===`
     );
+    console.log(`Date Range: ${monthRange.startDate} to ${monthRange.endDate}`);
 
-    // Track execution time
-    const trackTime = (label) => {
-      const currentTime = new Date();
-      const elapsedMs = currentTime - startTime;
-      const elapsedSec = Math.round(elapsedMs / 1000);
-      const elapsedMin = Math.round((elapsedSec / 60) * 10) / 10;
-      console.log(
-        `[TIMING] ${label}: ${elapsedMin} minutes (${elapsedSec} seconds)`
-      );
-      return currentTime;
+    // Update folder config for this month
+    const folderConfig = {
+      folderId: "1OA82RSaq0On_ERovDsZYUqeoMByyWruP", // Updated folder ID
+      startDate: monthRange.startDate,
+      endDate: monthRange.endDate,
+      description: `Monthly Report - ${monthRange.monthName} ${monthRange.year}`,
     };
-
-    trackTime("Process started");
-
-    // Authenticate with Google APIs and verify folder access
-    const googleClients = await authenticateAndVerifyAccess();
-    trackTime("Google Drive authentication complete");
 
     // Fetch all groups with retry logic
     console.log("\n=== Fetching Customer Groups ===");
     let groups = [];
-    trackTime("Fetching customer groups started");
-    const groupFetchStartTime = trackTime("Fetching customer groups");
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -715,15 +950,8 @@ const main = async () => {
 
     if (groups.length === 0) {
       console.error("No groups found after multiple attempts. Cannot proceed.");
-      return;
+      return [];
     }
-
-    console.log("\nGroup details:");
-    groups.forEach((group, index) => {
-      console.log(
-        `${index + 1}. Group ID: ${group.group_id}, Name: ${group.name}`
-      );
-    });
 
     // Fetch all profiles with retry logic
     console.log("\n=== Fetching All Profiles ===");
@@ -757,20 +985,7 @@ const main = async () => {
       console.error(
         "No profiles found after multiple attempts. Cannot proceed."
       );
-      return;
-    }
-
-    console.log("\nProfile details:");
-    profiles.slice(0, 5).forEach((profile, index) => {
-      const groupsInfo = profile.groups ? profile.groups.join(",") : "None";
-      console.log(
-        `${index + 1}. Profile ID: ${profile.customer_profile_id}, Name: ${
-          profile.name
-        }, Network: ${profile.network_type}, Groups: ${groupsInfo}`
-      );
-    });
-    if (profiles.length > 5) {
-      console.log(`... and ${profiles.length - 5} more profiles`);
+      return [];
     }
 
     // Group profiles by group ID
@@ -796,9 +1011,11 @@ const main = async () => {
       });
     }
 
-    // Process each group
-    console.log("\n=== Processing Each Group ===");
-    const allResults = [];
+    // Override the global FOLDER_CONFIGS for this month's processing
+    FOLDER_CONFIGS[0] = folderConfig;
+
+    // Process each group for this month
+    const monthResults = [];
 
     // Process groups with a delay between each to avoid hitting API quotas
     for (const [groupId, groupData] of Object.entries(profilesByGroup)) {
@@ -807,7 +1024,7 @@ const main = async () => {
       if (profiles.length > 0) {
         try {
           console.log(
-            `\nProcessing group: ${groupName} (${groupId}) with ${profiles.length} profiles`
+            `\nProcessing group: ${groupName} (${groupId}) with ${profiles.length} profiles for ${monthRange.monthName} ${monthRange.year}`
           );
           const results = await processGroupAnalytics(
             groupId,
@@ -816,18 +1033,17 @@ const main = async () => {
             googleClients
           );
           if (results && results.length > 0) {
-            allResults.push(...results);
+            monthResults.push(...results);
           }
 
-          // Add a much longer delay after processing each group to avoid hitting API quotas
-          // Wait 5 minutes between groups
+          // Add a delay after processing each group to avoid hitting API quotas
           console.log(
             `Waiting 5 minutes before processing the next group to avoid API quota limits...`
           );
           await sleep(5 * 60 * 1000); // 5 minutes in milliseconds
         } catch (error) {
           console.error(
-            `Error processing group ${groupName}: ${error.message}`
+            `Error processing group ${groupName} for ${monthRange.monthName} ${monthRange.year}: ${error.message}`
           );
           if (error.stack) {
             console.error(`Stack trace: ${error.stack}`);
@@ -846,32 +1062,99 @@ const main = async () => {
       }
     }
 
-    // Print summary
-    console.log("\n=== Processing Complete ===");
+    return monthResults;
+  } catch (error) {
+    console.error(`Error processing month analytics: ${error.message}`);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    return [];
+  }
+};
+
+/**
+ * Main function to orchestrate the entire process
+ */
+const main = async () => {
+  try {
+    const startTime = new Date();
     console.log(
-      `Processed ${allResults.length} spreadsheets across ${FOLDER_CONFIGS.length} folders:`
+      `Starting Monthly Group Analytics Processing at ${startTime.toLocaleTimeString()}`
     );
 
-    // Group results by folder
-    const resultsByFolder = {};
-    FOLDER_CONFIGS.forEach((config) => {
-      resultsByFolder[config.folderId] = {
-        description: config.description,
-        dateRange: `${config.startDate} to ${config.endDate}`,
-        results: allResults.filter(
-          (result) => result.folderId === config.folderId
-        ),
-      };
+    // Track execution time
+    const trackTime = (label) => {
+      const currentTime = new Date();
+      const elapsedMs = currentTime - startTime;
+      const elapsedSec = Math.round(elapsedMs / 1000);
+      const elapsedMin = Math.round((elapsedSec / 60) * 10) / 10;
+      console.log(
+        `[TIMING] ${label}: ${elapsedMin} minutes (${elapsedSec} seconds)`
+      );
+      return currentTime;
+    };
+
+    trackTime("Process started");
+
+    // Authenticate with Google APIs and verify folder access
+    const googleClients = await authenticateAndVerifyAccess();
+    trackTime("Google Drive authentication complete");
+
+    // Determine which months to process
+    const monthsToProcess = [];
+
+    // Start from January 1, 2024
+    const startDate = new Date(2024, 0, 1); // January 1, 2024
+    const currentDate = new Date();
+
+    // Process each month from January 2024 to the current month
+    let currentMonth = new Date(startDate);
+    while (currentMonth <= currentDate) {
+      monthsToProcess.push(new Date(currentMonth));
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
+    }
+
+    // Process each month
+    const allResults = [];
+    for (const monthDate of monthsToProcess) {
+      const monthResults = await processMonthAnalytics(
+        monthDate,
+        googleClients
+      );
+      if (monthResults && monthResults.length > 0) {
+        allResults.push(...monthResults);
+      }
+
+      // Add delay between months if processing multiple months
+      if (monthsToProcess.length > 1) {
+        console.log("\nWaiting 10 minutes before processing next month...");
+        await sleep(10 * 60 * 1000); // 10 minutes between months
+      }
+    }
+
+    // Print summary
+    console.log("\n=== Monthly Processing Complete ===");
+    console.log(
+      `Processed ${allResults.length} spreadsheets across ${monthsToProcess.length} months:`
+    );
+
+    // Group results by month
+    const resultsByMonth = {};
+    allResults.forEach((result) => {
+      const monthKey = result.startDate.substring(0, 7); // YYYY-MM format
+      if (!resultsByMonth[monthKey]) {
+        resultsByMonth[monthKey] = [];
+      }
+      resultsByMonth[monthKey].push(result);
     });
 
-    // Print summary by folder
-    for (const [folderId, folderData] of Object.entries(resultsByFolder)) {
-      const { description, dateRange, results } = folderData;
+    // Print summary by month
+    for (const [monthKey, monthResults] of Object.entries(resultsByMonth)) {
       console.log(
-        `\nFolder ID: ${folderId} - ${description} (${dateRange}) - ${results.length} spreadsheets created:`
+        `\nMonth: ${monthKey} - ${monthResults.length} spreadsheets created:`
       );
 
-      results.forEach((result) => {
+      monthResults.forEach((result) => {
         if (result.spreadsheetUrl) {
           console.log(
             `- ${result.groupName} (${result.profileCount} profiles): ${result.spreadsheetUrl}`
@@ -883,6 +1166,14 @@ const main = async () => {
         }
       });
     }
+
+    // Calculate and log total execution time
+    const endTime = new Date();
+    const totalTimeMs = endTime - startTime;
+    const totalTimeMin = Math.round((totalTimeMs / 1000 / 60) * 10) / 10;
+
+    console.log(`\nTotal execution time: ${totalTimeMin} minutes`);
+    console.log(`Script completed at ${endTime.toLocaleTimeString()}`);
   } catch (error) {
     console.error(`Error in main process: ${error.message}`);
     if (error.stack) {
@@ -897,14 +1188,12 @@ process.on("uncaughtException", (error) => {
   console.error(`Error: ${error.message}`);
   console.error(`Stack: ${error.stack}`);
   console.error("The script will continue execution despite this error.");
-  // Don't exit the process - allow it to continue
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("CRITICAL ERROR: Unhandled Promise Rejection detected");
   console.error(`Reason: ${reason}`);
   console.error("The script will continue execution despite this error.");
-  // Don't exit the process - allow it to continue
 });
 
 // Add a watchdog timer to prevent indefinite hangs
