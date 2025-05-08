@@ -12,6 +12,7 @@
 
 const path = require("path");
 const fs = require("fs");
+require("dotenv").config();
 
 // Import utilities
 const apiUtils = require("./utils/api");
@@ -42,8 +43,10 @@ const SPROUT_API_TOKEN =
 // Paths
 const SERVICE_ACCOUNT_KEY_PATH = path.join(
   __dirname,
-  "service-account-key.json"
+  process.env.SERVICE_ACCOUNT_KEY
 );
+
+
 
 /**
  * Get the first and last day of a month for the given date
