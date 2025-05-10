@@ -20,6 +20,7 @@ const sheetsUtils = require("./utils/sheets");
 const driveUtils = require("./utils/drive");
 const groupUtils = require("./utils/groups");
 const authUtils = require("./utils/auth");
+const credentialsManager = require("./utils/credentials-manager");
 
 // Import platform modules
 const instagram = require("./platforms/instagram");
@@ -40,13 +41,8 @@ const CUSTOMER_ID = "2426451";
 const SPROUT_API_TOKEN =
   "MjQyNjQ1MXwxNzQyNzk4MTc4fDQ0YmU1NzQ4LWI1ZDAtNDhkMi04ODQxLWE1YzM1YmI4MmNjNQ==";
 
-// Paths
-const SERVICE_ACCOUNT_KEY_PATH = path.join(
-  __dirname,
-  process.env.SERVICE_ACCOUNT_KEY
-);
-
-
+// Paths - now using the default path that works with our credentials-manager
+const SERVICE_ACCOUNT_KEY_PATH = path.join(__dirname, "credentials.json");
 
 /**
  * Get the first and last day of a month for the given date
@@ -299,6 +295,13 @@ const applySheetStyling = async (sheets, spreadsheetId, sheetName, headers) => {
 // Check for available credentials files
 const checkCredentials = () => {
   try {
+    // First check if environment variables are available
+    if (process.env.CLIENT_EMAIL && process.env.PRIVATE_KEY) {
+      console.log("Using Google API credentials from environment variables");
+      return "env";
+    }
+
+    // Fall back to file-based credentials if environment variables aren't available
     // First check for service account key
     if (fs.existsSync(SERVICE_ACCOUNT_KEY_PATH)) {
       console.log(`Found service account key at ${SERVICE_ACCOUNT_KEY_PATH}`);
@@ -323,18 +326,26 @@ const checkCredentials = () => {
 
     // No credentials found
     throw new Error(
-      `No credentials found. Please create one of the following files:\n- ${SERVICE_ACCOUNT_KEY_PATH}\n- ${driveCredentialsPath}\n- ${credentialsPath}`
+      `No credentials found. Please either:
+      1. Set CLIENT_EMAIL and PRIVATE_KEY environment variables, or
+      2. Create one of the following files:
+        - ${SERVICE_ACCOUNT_KEY_PATH}
+        - ${driveCredentialsPath}
+        - ${credentialsPath}`
     );
   } catch (error) {
     console.error(`Credentials error: ${error.message}`);
     console.error("\nPlease ensure you have:");
     console.error(
-      "1. Created a service account or OAuth client in the Google Cloud Console"
+      "1. Set up environment variables with CLIENT_EMAIL and PRIVATE_KEY, or"
     );
-    console.error("2. Downloaded the credentials file");
-    console.error("3. Saved it to one of the locations mentioned above");
     console.error(
-      "4. Shared your Google Drive folders with the appropriate account"
+      "2. Created a service account or OAuth client in the Google Cloud Console"
+    );
+    console.error("3. Downloaded the credentials file");
+    console.error("4. Saved it to one of the locations mentioned above");
+    console.error(
+      "5. Shared your Google Drive folders with the appropriate account"
     );
     process.exit(1); // Exit if we can't set up credentials - no point continuing
   }
@@ -348,13 +359,22 @@ const authenticateAndVerifyAccess = async () => {
   try {
     console.log("Authenticating with Google APIs...");
 
-    // Get the path to credentials file
-    const credentialsPath = checkCredentials();
+    // Get the credentials source
+    const credentialsSource = checkCredentials();
+    let googleClients;
 
-    // Authenticate with the credentials
-    const googleClients = await authUtils.authenticateWithServiceAccount(
-      credentialsPath
-    );
+    if (credentialsSource === "env") {
+      // Use environment variables for authentication
+      console.log("Using environment variables for Google API authentication");
+      googleClients = await credentialsManager.getGoogleClientsFromEnv();
+    } else {
+      // Use file-based authentication
+      console.log(`Using credentials file at ${credentialsSource}`);
+      googleClients = await authUtils.authenticateWithServiceAccount(
+        credentialsSource
+      );
+    }
+
     if (!googleClients.drive || !googleClients.sheets || !googleClients.auth) {
       throw new Error("Failed to initialize Google API clients");
     }
@@ -371,10 +391,21 @@ const authenticateAndVerifyAccess = async () => {
     // Verify access to all folders
     let allFoldersAccessible = true;
     for (const folderConfig of FOLDER_CONFIGS) {
-      const folderAccessible = await authUtils.verifyFolderAccess(
-        googleClients.drive,
-        folderConfig.folderId
-      );
+      let folderAccessible;
+
+      // Handle folder verification based on the credentials source
+      if (credentialsSource === "env") {
+        folderAccessible = await credentialsManager.verifyFolderAccess(
+          googleClients.drive,
+          folderConfig.folderId
+        );
+      } else {
+        folderAccessible = await authUtils.verifyFolderAccess(
+          googleClients.drive,
+          folderConfig.folderId
+        );
+      }
+
       if (!folderAccessible) {
         console.error(
           `Warning: Issues accessing folder ${folderConfig.folderId}`
@@ -407,7 +438,7 @@ const authenticateAndVerifyAccess = async () => {
         "\nAuthentication error detected. The service account credentials are invalid."
       );
       console.error(
-        "Please generate new service account keys from the Google Cloud Console."
+        "Please check your environment variables or generate new service account keys."
       );
     } else if (
       error.message.includes("permission") ||

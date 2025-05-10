@@ -139,6 +139,15 @@ app.get("/run", async (req, res) => {
   }
 });
 
+// Add a health check endpoint for Railway monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Start the server
 const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
